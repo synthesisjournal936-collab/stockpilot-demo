@@ -11,6 +11,7 @@
     products: P + 'products',
     customers: P + 'customers',
     orders: P + 'orders',
+    suppliers: P + 'suppliers',
     settings: P + 'settings',
     nextOrder: P + 'next_order',
     fails: P + 'login_fails',
@@ -84,6 +85,12 @@
         { id: 'C-002', name: 'Northwind Traders', email: 'buying@northwind.test', phone: '+1 555 0202' }
       ]);
     }
+    if (read(K.suppliers, null) === null) {
+      write(K.suppliers, [
+        { id: 'S-001', name: 'Pacific Components', email: 'parts@pacific.test', lead: 14 },
+        { id: 'S-002', name: 'Metro Distribution', email: 'sales@metro.test', lead: 7 }
+      ]);
+    }
     if (read(K.orders, null) === null) {
       var t = today();
       var l1 = [{ productId: 'P-001', qty: 2, unitPrice: 25 }, { productId: 'P-002', qty: 1, unitPrice: 79 }];
@@ -98,7 +105,7 @@
   }
 
   function resetDemoData() {
-    [K.products, K.customers, K.orders, K.settings, K.nextOrder].forEach(function (k) {
+    [K.products, K.customers, K.orders, K.suppliers, K.settings, K.nextOrder].forEach(function (k) {
       try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
     });
     seed();
@@ -171,6 +178,7 @@
     ['dashboard', 'Dashboard', 'dashboard.html'],
     ['products', 'Products', 'products.html'],
     ['customers', 'Customers', 'customers.html'],
+    ['suppliers', 'Suppliers', 'suppliers.html'],
     ['orders', 'Orders', 'orders.html'],
     ['settings', 'Settings', 'settings.html']
   ];

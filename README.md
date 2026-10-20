@@ -11,6 +11,7 @@ Demo login (fake, public): `admin@stockpilot.io` / `Stock@2026`
 | Dashboard | `dashboard.html` | Active products, low stock items, open orders, revenue this month, low-stock list, recent orders |
 | Products | `products.html` | Add, edit, delete, search, "Low stock only" filter |
 | Customers | `customers.html` | Add, edit, delete, search |
+| Suppliers | `suppliers.html` | Add, edit, delete, search; lead time 1-90 days |
 | Orders | `orders.html` | Create order, confirm (takes stock), ship, deliver, cancel (puts stock back), search, filter |
 | Settings | `settings.html` | Company, tax rate, currency, shipping fee, free-shipping limit, reset demo data |
 
