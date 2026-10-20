@@ -20,7 +20,7 @@
   // Demo credentials (fake, public). Do not reuse this password anywhere else.
   var DEMO = { email: 'admin@stockpilot.io', password: 'Stock@2026', name: 'Ops Admin' };
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
-  var DEFAULT_SETTINGS = { company: 'StockPilot Trading', taxRate: 8, currency: 'USD', shippingFee: 5, freeShippingFrom: 100 };
+  var DEFAULT_SETTINGS = { company: 'StockPilot Trading', taxRate: 8, currency: 'USD', shippingFee: 5, freeShippingFrom: 150 };
   var OPEN_STATUSES = ['Pending', 'Confirmed', 'Shipped'];
 
   function read(key, fallback) {
