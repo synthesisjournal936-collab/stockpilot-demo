@@ -1,0 +1,43 @@
+name: Automation POC Playwright
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: QA base URL
+        required: true
+      execution_id:
+        description: Backend execution id
+        required: true
+      spec_files:
+        description: Space-separated spec filenames to run (empty = run every generated spec)
+        required: false
+        default: ""
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Run Playwright tests (headed, via virtual display)
+        run: xvfb-run --auto-servernum -- npx playwright test --headed --browser=chromium ${{ inputs.spec_files }}
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ inputs.base_url }}
+          APP_USERNAME: ${{ secrets.APP_USERNAME }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          HITL_SECRETS_JSON: ${{ secrets.HITL_SECRETS_JSON }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ inputs.execution_id }}
+          path: |
+            playwright-report
+            test-results
+            login-check
