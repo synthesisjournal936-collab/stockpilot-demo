@@ -171,7 +171,7 @@
     ['dashboard', 'Dashboard', 'dashboard.html'],
     ['products', 'Products', 'products.html'],
     ['customers', 'Customers', 'customers.html'],
-    ['orders', 'Orders', 'orders.html'],
+    ['orders', 'Sales', 'orders.html'],
     ['settings', 'Settings', 'settings.html']
   ];
   function mountShell(active) {
