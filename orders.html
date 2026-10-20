@@ -257,8 +257,8 @@
         for (var i = 0; i < o.lines.length; i++) {
           var line = o.lines[i];
           var p = catalogue.filter(function (x) { return x.id === line.productId; })[0];
-          if (!p || p.stock < line.qty) {
-            SP.toast('Not enough stock for ' + (p ? p.name : line.productId) + ' (available ' + (p ? p.stock : 0) + ')', 'error');
+          if (!p) {
+            SP.toast('Product no longer exists: ' + line.productId, 'error');
             return;
           }
         }
