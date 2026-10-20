@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@axe-core/playwright": "latest"
+  }
+}
