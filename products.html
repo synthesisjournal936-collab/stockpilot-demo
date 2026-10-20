@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Products - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <main class="content">
+        <div class="page-head">
+          <h1>Products</h1>
+          <button type="button" class="btn btn-primary" id="add-product">Add Product</button>
+        </div>
+
+        <div class="toolbar">
+          <input type="search" id="product-search" placeholder="Search products" aria-label="Search products">
+          <label class="check"><input type="checkbox" id="low-stock-only"> Low stock only</label>
+        </div>
+
+        <table id="product-table">
+          <thead>
+            <tr><th>Name</th><th>SKU</th><th class="num">Unit price</th><th class="num">Stock</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="product-dialog" aria-labelledby="product-dialog-title">
+    <h2 id="product-dialog-title">Add product</h2>
+    <form id="product-form" novalidate>
+      <div class="field">
+        <label for="product-name">Product name</label>
+        <input id="product-name" name="name" type="text" autocomplete="off">
+        <span class="field-error" id="product-name-error" role="alert"></span>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="product-sku">SKU</label>
+          <input id="product-sku" name="sku" type="text" autocomplete="off" placeholder="ABC-123">
+          <span class="field-error" id="product-sku-error" role="alert"></span>
+        </div>
+        <div class="field">
+          <label for="product-price">Unit price</label>
+          <input id="product-price" name="price" type="number" step="0.01" autocomplete="off">
+          <span class="field-error" id="product-price-error" role="alert"></span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="product-stock">Stock quantity</label>
+          <input id="product-stock" name="stock" type="number" step="1" autocomplete="off">
+          <span class="field-error" id="product-stock-error" role="alert"></span>
+        </div>
+        <div class="field">
+          <label for="product-reorder">Reorder level</label>
+          <input id="product-reorder" name="reorder" type="number" step="1" autocomplete="off">
+          <span class="field-error" id="product-reorder-error" role="alert"></span>
+        </div>
+      </div>
+      <label class="check"><input id="product-active" type="checkbox" checked> Active</label>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="product-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="product-save">Save product</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (!SP.mountShell('products')) return;
+
+      var SKU_RE = /^[A-Z]{3}-\d{3}$/;
+      var dialog = document.getElementById('product-dialog');
+      var form = document.getElementById('product-form');
+      var f = {
+        name: document.getElementById('product-name'), sku: document.getElementById('product-sku'),
+        price: document.getElementById('product-price'), stock: document.getElementById('product-stock'),
+        reorder: document.getElementById('product-reorder'), active: document.getElementById('product-active')
+      };
+      var err = {
+        name: document.getElementById('product-name-error'), sku: document.getElementById('product-sku-error'),
+        price: document.getElementById('product-price-error'), stock: document.getElementById('product-stock-error'),
+        reorder: document.getElementById('product-reorder-error')
+      };
+      var title = document.getElementById('product-dialog-title');
+      var search = document.getElementById('product-search');
+      var lowOnly = document.getElementById('low-stock-only');
+      var body = document.querySelector('#product-table tbody');
+      var editingId = null;
+
+      function products() { return SP.read(SP.K.products, []); }
+      function orders() { return SP.read(SP.K.orders, []); }
+      function clearErrors() { Object.keys(err).forEach(function (k) { err[k].textContent = ''; }); }
+
+      function statusCell(p) {
+        var out = p.active ? 'Active' : 'Inactive';
+        if (p.active && p.stock === 0) out += ' <span class="badge badge-bad">Out of stock</span>';
+        else if (SP.isLow(p)) out += ' <span class="badge badge-warn">Low stock</span>';
+        return out;
+      }
+
+      function render() {
+        var q = search.value.trim().toLowerCase();
+        var rows = products().filter(function (p) {
+          var hit = !q || p.name.toLowerCase().indexOf(q) !== -1 || p.sku.toLowerCase().indexOf(q) !== -1;
+          return hit && (!lowOnly.checked || SP.isLow(p));
+        });
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="6" class="empty">No products found</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map(function (p) {
+          return '<tr data-id="' + SP.esc(p.id) + '">' +
+            '<td>' + SP.esc(p.name) + '</td>' +
+            '<td>' + SP.esc(p.sku) + '</td>' +
+            '<td class="num">' + SP.money(p.price) + '</td>' +
+            '<td class="num">' + p.stock + '</td>' +
+            '<td>' + statusCell(p) + '</td>' +
+            '<td><div class="actions">' +
+            '<button type="button" class="btn btn-sm" data-action="edit">Edit</button>' +
+            '<button type="button" class="btn btn-sm btn-danger" data-action="delete">Delete</button>' +
+            '</div></td></tr>';
+        }).join('');
+      }
+
+      function openDialog(p) {
+        editingId = p ? p.id : null;
+        title.textContent = p ? 'Edit product' : 'Add product';
+        f.name.value = p ? p.name : '';
+        f.sku.value = p ? p.sku : '';
+        f.price.value = p ? p.price : '';
+        f.stock.value = p ? p.stock : '';
+        f.reorder.value = p ? p.reorder : 5;
+        f.active.checked = p ? !!p.active : true;
+        clearErrors();
+        dialog.showModal();
+        f.name.focus();
+      }
+
+      document.getElementById('add-product').addEventListener('click', function () { openDialog(null); });
+      document.getElementById('product-cancel').addEventListener('click', function () { dialog.close(); });
+      search.addEventListener('input', render);
+      lowOnly.addEventListener('change', render);
+
+      function wholeNumber(raw) { return raw !== '' && /^\d+$/.test(raw); }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearErrors();
+        var name = f.name.value.trim();
+        var sku = f.sku.value.trim().toUpperCase();
+        var priceRaw = f.price.value.trim();
+        var stockRaw = f.stock.value.trim();
+        var reorderRaw = f.reorder.value.trim();
+        var bad = false;
+
+        if (!name) { err.name.textContent = 'Product name is required'; bad = true; }
+        else if (name.length > 60) { err.name.textContent = 'Product name must be 60 characters or fewer'; bad = true; }
+
+        if (!sku) { err.sku.textContent = 'SKU is required'; bad = true; }
+        else if (!SKU_RE.test(sku)) { err.sku.textContent = 'SKU must look like ABC-123'; bad = true; }
+        else if (products().some(function (p) { return p.sku === sku && p.id !== editingId; })) {
+          err.sku.textContent = 'A product with this SKU already exists'; bad = true;
+        }
+
+        var price = Number(priceRaw);
+        if (priceRaw === '') { err.price.textContent = 'Unit price is required'; bad = true; }
+        else if (!isFinite(price) || price <= 0) { err.price.textContent = 'Unit price must be greater than 0'; bad = true; }
+        else if (price > 100000) { err.price.textContent = 'Unit price cannot exceed 100,000'; bad = true; }
+
+        if (stockRaw === '') { err.stock.textContent = 'Stock is required'; bad = true; }
+        else if (!wholeNumber(stockRaw)) { err.stock.textContent = 'Stock must be a whole number of 0 or more'; bad = true; }
+        else if (Number(stockRaw) > 100000) { err.stock.textContent = 'Stock cannot exceed 100,000'; bad = true; }
+
+        if (reorderRaw === '' || !wholeNumber(reorderRaw)) { err.reorder.textContent = 'Reorder level must be a whole number of 0 or more'; bad = true; }
+
+        if (bad) return;
+
+        var list = products();
+        var record = { name: name, sku: sku, price: SP.round2(price), stock: Number(stockRaw), reorder: Number(reorderRaw), active: f.active.checked };
+        if (editingId) {
+          list = list.map(function (p) { return p.id === editingId ? Object.assign({ id: p.id }, record) : p; });
+          SP.toast('Product updated');
+        } else {
+          var next = list.reduce(function (m, p) { return Math.max(m, parseInt(p.id.slice(2), 10) || 0); }, 0) + 1;
+          list.push(Object.assign({ id: 'P-' + String(next).padStart(3, '0') }, record));
+          SP.toast('Product added');
+        }
+        SP.write(SP.K.products, list);
+        dialog.close();
+        render();
+      });
+
+      body.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        var id = btn.closest('tr').getAttribute('data-id');
+        var product = products().filter(function (p) { return p.id === id; })[0];
+        if (!product) return;
+
+        if (btn.getAttribute('data-action') === 'edit') { openDialog(product); return; }
+
+        // A product that appears on an order cannot be removed.
+        var used = orders().some(function (o) { return o.lines.some(function (l) { return l.productId === id; }); });
+        if (used) { SP.toast('Cannot delete a product used in orders', 'error'); return; }
+        SP.confirm('Delete product "' + product.name + '"?', 'Delete').then(function (ok) {
+          if (!ok) return;
+          SP.write(SP.K.products, products().filter(function (p) { return p.id !== id; }));
+          SP.toast('Product deleted');
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

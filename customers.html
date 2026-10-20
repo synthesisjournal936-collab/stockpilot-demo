@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customers - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <main class="content">
+        <div class="page-head">
+          <h1>Customers</h1>
+          <button type="button" class="btn btn-primary" id="add-customer">Add Customer</button>
+        </div>
+
+        <div class="toolbar">
+          <input type="search" id="customer-search" placeholder="Search customers" aria-label="Search customers">
+        </div>
+
+        <table id="customer-table">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Phone</th><th class="num">Orders</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="customer-dialog" aria-labelledby="customer-dialog-title">
+    <h2 id="customer-dialog-title">Add customer</h2>
+    <form id="customer-form" novalidate>
+      <div class="field">
+        <label for="customer-name">Customer name</label>
+        <input id="customer-name" name="name" type="text" autocomplete="off">
+        <span class="field-error" id="customer-name-error" role="alert"></span>
+      </div>
+      <div class="field">
+        <label for="customer-email">Email</label>
+        <input id="customer-email" name="email" type="email" autocomplete="off">
+        <span class="field-error" id="customer-email-error" role="alert"></span>
+      </div>
+      <div class="field">
+        <label for="customer-phone">Phone</label>
+        <input id="customer-phone" name="phone" type="text" autocomplete="off">
+        <span class="field-error" id="customer-phone-error" role="alert"></span>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="customer-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="customer-save">Save customer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (!SP.mountShell('customers')) return;
+
+      var dialog = document.getElementById('customer-dialog');
+      var form = document.getElementById('customer-form');
+      var nameEl = document.getElementById('customer-name');
+      var emailEl = document.getElementById('customer-email');
+      var phoneEl = document.getElementById('customer-phone');
+      var nameErr = document.getElementById('customer-name-error');
+      var emailErr = document.getElementById('customer-email-error');
+      var phoneErr = document.getElementById('customer-phone-error');
+      var title = document.getElementById('customer-dialog-title');
+      var search = document.getElementById('customer-search');
+      var body = document.querySelector('#customer-table tbody');
+      var editingId = null;
+      var PHONE_RE = /^[0-9+()\-\s]{7,20}$/;
+
+      function customers() { return SP.read(SP.K.customers, []); }
+      function orders() { return SP.read(SP.K.orders, []); }
+      function clearErrors() { nameErr.textContent = ''; emailErr.textContent = ''; phoneErr.textContent = ''; }
+
+      function render() {
+        var q = search.value.trim().toLowerCase();
+        var counts = {};
+        orders().forEach(function (o) { counts[o.customerId] = (counts[o.customerId] || 0) + 1; });
+        var rows = customers().filter(function (c) {
+          return !q || c.name.toLowerCase().indexOf(q) !== -1 || c.email.toLowerCase().indexOf(q) !== -1;
+        });
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="5" class="empty">No customers found</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map(function (c) {
+          return '<tr data-id="' + SP.esc(c.id) + '">' +
+            '<td>' + SP.esc(c.name) + '</td>' +
+            '<td>' + SP.esc(c.email) + '</td>' +
+            '<td>' + SP.esc(c.phone || '-') + '</td>' +
+            '<td class="num">' + (counts[c.id] || 0) + '</td>' +
+            '<td><div class="actions">' +
+            '<button type="button" class="btn btn-sm" data-action="edit">Edit</button>' +
+            '<button type="button" class="btn btn-sm btn-danger" data-action="delete">Delete</button>' +
+            '</div></td></tr>';
+        }).join('');
+      }
+
+      function openDialog(c) {
+        editingId = c ? c.id : null;
+        title.textContent = c ? 'Edit customer' : 'Add customer';
+        nameEl.value = c ? c.name : '';
+        emailEl.value = c ? c.email : '';
+        phoneEl.value = c ? (c.phone || '') : '';
+        clearErrors();
+        dialog.showModal();
+        nameEl.focus();
+      }
+
+      document.getElementById('add-customer').addEventListener('click', function () { openDialog(null); });
+      document.getElementById('customer-cancel').addEventListener('click', function () { dialog.close(); });
+      search.addEventListener('input', render);
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearErrors();
+        var name = nameEl.value.trim();
+        var email = emailEl.value.trim();
+        var phone = phoneEl.value.trim();
+        var bad = false;
+
+        if (!name) { nameErr.textContent = 'Customer name is required'; bad = true; }
+        else if (name.length > 80) { nameErr.textContent = 'Customer name must be 80 characters or fewer'; bad = true; }
+
+        if (!email) { emailErr.textContent = 'Email is required'; bad = true; }
+        else if (!SP.EMAIL_RE.test(email)) { emailErr.textContent = 'Enter a valid email address'; bad = true; }
+        else if (customers().some(function (c) { return c.email.toLowerCase() === email.toLowerCase() && c.id !== editingId; })) {
+          emailErr.textContent = 'A customer with this email already exists'; bad = true;
+        }
+
+        if (phone && !PHONE_RE.test(phone)) { phoneErr.textContent = 'Enter a valid phone number'; bad = true; }
+        if (bad) return;
+
+        var list = customers();
+        if (editingId) {
+          list = list.map(function (c) { return c.id === editingId ? { id: c.id, name: name, email: email, phone: phone } : c; });
+          SP.toast('Customer updated');
+        } else {
+          var next = list.reduce(function (m, c) { return Math.max(m, parseInt(c.id.slice(2), 10) || 0); }, 0) + 1;
+          list.push({ id: 'C-' + String(next).padStart(3, '0'), name: name, email: email, phone: phone });
+          SP.toast('Customer added');
+        }
+        SP.write(SP.K.customers, list);
+        dialog.close();
+        render();
+      });
+
+      body.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        var id = btn.closest('tr').getAttribute('data-id');
+        var customer = customers().filter(function (c) { return c.id === id; })[0];
+        if (!customer) return;
+
+        if (btn.getAttribute('data-action') === 'edit') { openDialog(customer); return; }
+
+        if (orders().some(function (o) { return o.customerId === id; })) {
+          SP.toast('Cannot delete a customer with orders', 'error');
+          return;
+        }
+        SP.confirm('Delete customer "' + customer.name + '"?', 'Delete').then(function (ok) {
+          if (!ok) return;
+          SP.write(SP.K.customers, customers().filter(function (c) { return c.id !== id; }));
+          SP.toast('Customer deleted');
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

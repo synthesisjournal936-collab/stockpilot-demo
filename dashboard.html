@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <main class="content">
+        <div class="page-head">
+          <h1>Dashboard</h1>
+          <a class="btn btn-primary" id="quick-order" href="orders.html">Create an order</a>
+        </div>
+
+        <section class="cards" aria-label="Summary">
+          <div class="card"><div class="label">Active products</div><div class="value" id="stat-products">0</div></div>
+          <div class="card"><div class="label">Low stock items</div><div class="value" id="stat-low">0</div></div>
+          <div class="card"><div class="label">Open orders</div><div class="value" id="stat-open">0</div></div>
+          <div class="card"><div class="label">Revenue this month</div><div class="value" id="stat-revenue">$0.00</div></div>
+        </section>
+
+        <h2>Low stock</h2>
+        <table id="low-stock-table">
+          <thead><tr><th>Product</th><th>SKU</th><th class="num">In stock</th><th class="num">Reorder level</th></tr></thead>
+          <tbody></tbody>
+        </table>
+
+        <h2>Recent orders</h2>
+        <table id="recent-orders">
+          <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th class="num">Total</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (!SP.mountShell('dashboard')) return;
+
+      var products = SP.read(SP.K.products, []);
+      var customers = SP.read(SP.K.customers, []);
+      var orders = SP.read(SP.K.orders, []);
+      var names = {};
+      customers.forEach(function (c) { names[c.id] = c.name; });
+
+      var monthPrefix = SP.today().slice(0, 7);
+      var low = products.filter(SP.isLow);
+      var open = orders.filter(function (o) { return SP.OPEN_STATUSES.indexOf(o.status) !== -1; });
+      var revenue = orders.filter(function (o) {
+        return o.status === 'Delivered' && (o.deliveredDate || '').slice(0, 7) === monthPrefix;
+      }).reduce(function (sum, o) { return sum + o.total; }, 0);
+
+      document.getElementById('stat-products').textContent = products.filter(function (p) { return p.active; }).length;
+      document.getElementById('stat-low').textContent = low.length;
+      document.getElementById('stat-open').textContent = open.length;
+      document.getElementById('stat-revenue').textContent = SP.money(SP.round2(revenue));
+
+      var lowBody = document.querySelector('#low-stock-table tbody');
+      lowBody.innerHTML = low.length ? low.map(function (p) {
+        return '<tr><td>' + SP.esc(p.name) + '</td><td>' + SP.esc(p.sku) + '</td><td class="num">' + p.stock + '</td><td class="num">' + p.reorder + '</td></tr>';
+      }).join('') : '<tr><td colspan="4" class="empty">All products are well stocked</td></tr>';
+
+      var recent = orders.slice().reverse().slice(0, 5);
+      var recentBody = document.querySelector('#recent-orders tbody');
+      recentBody.innerHTML = recent.length ? recent.map(function (o) {
+        return '<tr><td>' + SP.esc(o.id) + '</td><td>' + SP.esc(names[o.customerId] || '-') + '</td><td>' + SP.esc(o.date) +
+          '</td><td class="num">' + SP.money(o.total) + '</td><td>' + SP.esc(o.status) + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="empty">No orders yet</td></tr>';
+    })();
+  </script>
+</body>
+</html>

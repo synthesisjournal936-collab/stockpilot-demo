@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orders - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <main class="content">
+        <div class="page-head">
+          <h1>Orders</h1>
+          <button type="button" class="btn btn-primary" id="create-order">Create Order</button>
+        </div>
+
+        <div class="toolbar">
+          <input type="search" id="order-search" placeholder="Search orders" aria-label="Search orders">
+          <select id="order-status-filter" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Confirmed">Confirmed</option>
+            <option value="Shipped">Shipped</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <table id="order-table">
+          <thead>
+            <tr><th>Order</th><th>Customer</th><th>Date</th><th class="num">Items</th><th class="num">Total</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="order-dialog" aria-labelledby="order-dialog-title">
+    <h2 id="order-dialog-title">Create order</h2>
+    <form id="order-form" novalidate>
+      <div class="row">
+        <div class="field">
+          <label for="order-customer">Customer</label>
+          <select id="order-customer" name="customer"></select>
+        </div>
+        <div class="field">
+          <label for="order-date">Order date</label>
+          <input id="order-date" name="date" type="date">
+        </div>
+      </div>
+
+      <table class="lines">
+        <thead>
+          <tr><th>Product</th><th style="width:90px">Qty</th><th class="num" style="width:90px">Price</th><th class="num" style="width:100px">Amount</th><th style="width:80px"></th></tr>
+        </thead>
+        <tbody id="order-lines"></tbody>
+      </table>
+      <p><button type="button" class="btn btn-sm" id="add-line">Add line</button></p>
+
+      <div class="totals">
+        <div><span>Subtotal</span><span id="t-subtotal">$0.00</span></div>
+        <div><span>Shipping</span><span id="t-shipping">$0.00</span></div>
+        <div><span id="t-tax-label">Tax</span><span id="t-tax">$0.00</span></div>
+        <div class="grand"><span>Total</span><span id="t-total">$0.00</span></div>
+      </div>
+
+      <p id="order-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="order-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="order-save">Place order</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (!SP.mountShell('orders')) return;
+
+      var dialog = document.getElementById('order-dialog');
+      var form = document.getElementById('order-form');
+      var customerEl = document.getElementById('order-customer');
+      var dateEl = document.getElementById('order-date');
+      var linesEl = document.getElementById('order-lines');
+      var errorEl = document.getElementById('order-error');
+      var search = document.getElementById('order-search');
+      var statusFilter = document.getElementById('order-status-filter');
+      var body = document.querySelector('#order-table tbody');
+      var activeProducts = [];
+
+      function customers() { return SP.read(SP.K.customers, []); }
+      function products() { return SP.read(SP.K.products, []); }
+      function orders() { return SP.read(SP.K.orders, []); }
+      function saveOrders(list) { SP.write(SP.K.orders, list); }
+
+      /* ---------- table ---------- */
+      function actionsFor(o) {
+        var out = '';
+        if (o.status === 'Pending') {
+          out = '<button type="button" class="btn btn-sm" data-action="confirm">Confirm</button>' +
+                '<button type="button" class="btn btn-sm btn-danger" data-action="cancel">Cancel</button>';
+        } else if (o.status === 'Confirmed') {
+          out = '<button type="button" class="btn btn-sm" data-action="ship">Mark shipped</button>' +
+                '<button type="button" class="btn btn-sm btn-danger" data-action="cancel">Cancel</button>';
+        } else if (o.status === 'Shipped') {
+          out = '<button type="button" class="btn btn-sm" data-action="deliver">Mark delivered</button>';
+        } else {
+          out = '<span class="muted">-</span>';
+        }
+        return '<div class="actions">' + out + '</div>';
+      }
+
+      function render() {
+        var names = {};
+        customers().forEach(function (c) { names[c.id] = c.name; });
+        var q = search.value.trim().toLowerCase();
+        var wanted = statusFilter.value;
+        var rows = orders().slice().reverse().filter(function (o) {
+          var text = (o.id + ' ' + (names[o.customerId] || '')).toLowerCase();
+          return (!wanted || o.status === wanted) && (!q || text.indexOf(q) !== -1);
+        });
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="7" class="empty">No orders found</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map(function (o) {
+          var items = o.lines.reduce(function (s, l) { return s + l.qty; }, 0);
+          return '<tr data-id="' + SP.esc(o.id) + '">' +
+            '<td>' + SP.esc(o.id) + '</td>' +
+            '<td>' + SP.esc(names[o.customerId] || '-') + '</td>' +
+            '<td>' + SP.esc(o.date) + '</td>' +
+            '<td class="num">' + items + '</td>' +
+            '<td class="num">' + SP.money(o.total) + '</td>' +
+            '<td>' + SP.esc(o.status) + '</td>' +
+            '<td>' + actionsFor(o) + '</td></tr>';
+        }).join('');
+      }
+
+      /* ---------- create-order dialog ---------- */
+      function productOptions() {
+        return '<option value="">Select product</option>' + activeProducts.map(function (p) {
+          return '<option value="' + SP.esc(p.id) + '">' + SP.esc(p.name) + ' (' + SP.esc(p.sku) + ') - ' + p.stock + ' in stock</option>';
+        }).join('');
+      }
+
+      function lineRow() {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><select class="line-product" aria-label="Product">' + productOptions() + '</select></td>' +
+          '<td><input type="number" class="line-qty" aria-label="Quantity" min="1" max="999" step="1" value="1"></td>' +
+          '<td class="num line-price">-</td>' +
+          '<td class="num line-amount">-</td>' +
+          '<td><button type="button" class="btn btn-sm line-remove" aria-label="Remove line">Remove</button></td>';
+        return tr;
+      }
+
+      function readLines() {
+        return Array.prototype.map.call(linesEl.querySelectorAll('tr'), function (tr) {
+          var pid = tr.querySelector('.line-product').value;
+          var product = activeProducts.filter(function (p) { return p.id === pid; })[0];
+          return {
+            row: tr, productId: pid, product: product,
+            qtyRaw: tr.querySelector('.line-qty').value,
+            qty: Number(tr.querySelector('.line-qty').value)
+          };
+        });
+      }
+
+      function refreshTotals() {
+        var s = SP.settings();
+        var calc = [];
+        var all = readLines();
+        all.forEach(function (l) {
+          var price = l.product ? l.product.price : 0;
+          var qty = isFinite(l.qty) && l.qty > 0 ? l.qty : 0;
+          l.row.querySelector('.line-price').textContent = l.product ? SP.money(price) : '-';
+          l.row.querySelector('.line-amount').textContent = l.product ? SP.money(SP.round2(price * qty)) : '-';
+          l.row.querySelector('.line-remove').disabled = all.length === 1;
+          if (l.product) calc.push({ qty: qty, unitPrice: price });
+        });
+        var t = SP.totals(calc, s);
+        document.getElementById('t-subtotal').textContent = SP.money(t.subtotal);
+        document.getElementById('t-shipping').textContent = (t.subtotal > 0 && t.shipping === 0) ? 'Free' : SP.money(t.shipping);
+        document.getElementById('t-tax-label').textContent = 'Tax (' + s.taxRate + '%)';
+        document.getElementById('t-tax').textContent = SP.money(t.tax);
+        document.getElementById('t-total').textContent = SP.money(t.total);
+      }
+
+      function openDialog() {
+        activeProducts = products().filter(function (p) { return p.active; });
+        customerEl.innerHTML = '<option value="">Select customer</option>' + customers().map(function (c) {
+          return '<option value="' + SP.esc(c.id) + '">' + SP.esc(c.name) + '</option>';
+        }).join('');
+        dateEl.value = SP.today();
+        linesEl.innerHTML = '';
+        linesEl.appendChild(lineRow());
+        errorEl.textContent = '';
+        refreshTotals();
+        dialog.showModal();
+      }
+
+      document.getElementById('create-order').addEventListener('click', openDialog);
+      document.getElementById('order-cancel').addEventListener('click', function () { dialog.close(); });
+      document.getElementById('add-line').addEventListener('click', function () { linesEl.appendChild(lineRow()); refreshTotals(); });
+      linesEl.addEventListener('input', refreshTotals);
+      linesEl.addEventListener('change', refreshTotals);
+      linesEl.addEventListener('click', function (e) {
+        var btn = e.target.closest('.line-remove');
+        if (!btn || btn.disabled) return;
+        btn.closest('tr').remove();
+        refreshTotals();
+      });
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        errorEl.textContent = '';
+        function fail(m) { errorEl.textContent = m; }
+
+        if (!customerEl.value) return fail('Select a customer');
+        if (!dateEl.value) return fail('Order date is required');
+        if (dateEl.value > SP.today()) return fail('Order date cannot be in the future');
+
+        var lines = readLines();
+        var seen = {};
+        for (var n = 0; n < lines.length; n++) {
+          var l = lines[n];
+          if (!l.productId) return fail('Select a product for every line');
+          if (!/^\d+$/.test(l.qtyRaw) || l.qty < 1 || l.qty > 999) return fail('Quantity must be a whole number between 1 and 999');
+          if (seen[l.productId]) return fail('Each product can only be added once');
+          seen[l.productId] = true;
+        }
+
+        var s = SP.settings();
+        var clean = lines.map(function (l) { return { productId: l.productId, qty: l.qty, unitPrice: l.product.price }; });
+        var t = SP.totals(clean, s);
+        var seq = SP.read(SP.K.nextOrder, orders().length + 1);
+        var id = 'ORD-' + String(seq).padStart(4, '0');
+        var list = orders();
+        list.push({
+          id: id, customerId: customerEl.value, date: dateEl.value, lines: clean,
+          subtotal: t.subtotal, shipping: t.shipping, taxRate: s.taxRate, tax: t.tax, total: t.total, status: 'Pending'
+        });
+        saveOrders(list);
+        SP.write(SP.K.nextOrder, seq + 1);
+        dialog.close();
+        SP.toast('Order ' + id + ' created');
+        render();
+      });
+
+      /* ---------- status changes ---------- */
+      function confirmOrder(list, o) {
+        var catalogue = products();
+        for (var i = 0; i < o.lines.length; i++) {
+          var line = o.lines[i];
+          var p = catalogue.filter(function (x) { return x.id === line.productId; })[0];
+          if (!p || p.stock < line.qty) {
+            SP.toast('Not enough stock for ' + (p ? p.name : line.productId) + ' (available ' + (p ? p.stock : 0) + ')', 'error');
+            return;
+          }
+        }
+        o.lines.forEach(function (line) {
+          catalogue.forEach(function (p) { if (p.id === line.productId) p.stock -= line.qty; });
+        });
+        SP.write(SP.K.products, catalogue);
+        o.status = 'Confirmed';
+        saveOrders(list);
+        SP.toast('Order ' + o.id + ' confirmed');
+        render();
+      }
+
+      body.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        var id = btn.closest('tr').getAttribute('data-id');
+        var action = btn.getAttribute('data-action');
+        var list = orders();
+        var o = list.filter(function (x) { return x.id === id; })[0];
+        if (!o) return;
+
+        if (action === 'confirm') { confirmOrder(list, o); }
+        else if (action === 'ship') {
+          o.status = 'Shipped'; saveOrders(list); SP.toast('Order ' + id + ' shipped'); render();
+        } else if (action === 'deliver') {
+          o.status = 'Delivered'; o.deliveredDate = SP.today(); saveOrders(list); SP.toast('Order ' + id + ' delivered'); render();
+        } else if (action === 'cancel') {
+          SP.confirm('Cancel order ' + id + '?', 'Cancel order', 'Keep order').then(function (ok) {
+            if (!ok) return;
+            // A confirmed order has already taken stock: cancelling puts it back.
+            if (o.status === 'Confirmed') {
+              var catalogue = products();
+              o.lines.forEach(function (line) {
+                catalogue.forEach(function (p) { if (p.id === line.productId) p.stock += line.qty; });
+              });
+              SP.write(SP.K.products, catalogue);
+            }
+            o.status = 'Cancelled';
+            saveOrders(list);
+            SP.toast('Order ' + id + ' cancelled');
+            render();
+          });
+        }
+      });
+
+      search.addEventListener('input', render);
+      statusFilter.addEventListener('change', render);
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <h1>StockPilot</h1>
+    <p class="muted">Sign in to manage stock and orders</p>
+
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input id="login-email" name="email" type="email" autocomplete="username" placeholder="you@company.com">
+        <span class="field-error" id="login-email-error" role="alert"></span>
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password">
+        <span class="field-error" id="login-password-error" role="alert"></span>
+      </div>
+      <label class="check"><input id="login-remember" type="checkbox" checked> Keep me signed in</label>
+      <p id="login-error" class="form-error" role="alert"></p>
+      <button id="login-submit" class="btn btn-primary" type="submit">Sign in</button>
+    </form>
+  </main>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (SP.getSession()) { location.replace('dashboard.html'); return; }
+      SP.seed();
+
+      var emailEl = document.getElementById('login-email');
+      var passEl = document.getElementById('login-password');
+      var rememberEl = document.getElementById('login-remember');
+      var emailErr = document.getElementById('login-email-error');
+      var passErr = document.getElementById('login-password-error');
+      var formErr = document.getElementById('login-error');
+
+      document.getElementById('login-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        emailErr.textContent = ''; passErr.textContent = ''; formErr.textContent = '';
+
+        var lockUntil = SP.read(SP.K.lock, 0);
+        if (lockUntil > Date.now()) {
+          formErr.textContent = 'Too many failed attempts. Try again in ' + Math.ceil((lockUntil - Date.now()) / 1000) + ' seconds.';
+          return;
+        }
+
+        var email = emailEl.value.trim();
+        var password = passEl.value;
+        var bad = false;
+        if (!email) { emailErr.textContent = 'Email is required'; bad = true; }
+        else if (!SP.EMAIL_RE.test(email)) { emailErr.textContent = 'Enter a valid email'; bad = true; }
+        if (!password) { passErr.textContent = 'Password is required'; bad = true; }
+        if (bad) return;
+
+        if (email.toLowerCase() === SP.DEMO.email && password === SP.DEMO.password) {
+          SP.write(SP.K.fails, 0);
+          SP.setSession({ email: SP.DEMO.email, name: SP.DEMO.name }, rememberEl.checked);
+          location.href = 'dashboard.html';
+          return;
+        }
+
+        // Same message for an unknown email and a wrong password. Three misses lock the form for 20 s.
+        var fails = SP.read(SP.K.fails, 0) + 1;
+        if (fails >= 3) {
+          SP.write(SP.K.fails, 0);
+          SP.write(SP.K.lock, Date.now() + 20000);
+          formErr.textContent = 'Too many failed attempts. Try again in 20 seconds.';
+        } else {
+          SP.write(SP.K.fails, fails);
+          formErr.textContent = 'Incorrect email or password';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

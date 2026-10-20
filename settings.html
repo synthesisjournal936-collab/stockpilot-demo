@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <main class="content">
+        <div class="page-head"><h1>Settings</h1></div>
+
+        <h2>Business</h2>
+        <form id="settings-form" novalidate style="max-width:460px">
+          <div class="field">
+            <label for="company-name">Company name</label>
+            <input id="company-name" name="company" type="text" autocomplete="off">
+            <span class="field-error" id="company-error" role="alert"></span>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="tax-rate">Tax rate (%)</label>
+              <input id="tax-rate" name="taxRate" type="number" step="0.01" autocomplete="off">
+              <span class="field-error" id="tax-error" role="alert"></span>
+            </div>
+            <div class="field">
+              <label for="currency">Currency</label>
+              <select id="currency" name="currency">
+                <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="INR">INR</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="shipping-fee">Shipping fee</label>
+              <input id="shipping-fee" name="shippingFee" type="number" step="0.01" autocomplete="off">
+              <span class="field-error" id="shipping-error" role="alert"></span>
+            </div>
+            <div class="field">
+              <label for="free-shipping-from">Free shipping from</label>
+              <input id="free-shipping-from" name="freeShippingFrom" type="number" step="0.01" autocomplete="off">
+              <span class="field-error" id="free-error" role="alert"></span>
+            </div>
+          </div>
+          <p class="muted">Shipping is free when an order subtotal reaches the "Free shipping from" amount. New orders use the current tax and shipping settings.</p>
+          <button type="submit" class="btn btn-primary" id="save-settings">Save settings</button>
+        </form>
+
+        <h2>Demo data</h2>
+        <p class="muted">Restore the sample products, customers, orders and settings.</p>
+        <button type="button" class="btn btn-danger" id="reset-data">Reset demo data</button>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (!SP.mountShell('settings')) return;
+
+      var companyEl = document.getElementById('company-name');
+      var taxEl = document.getElementById('tax-rate');
+      var curEl = document.getElementById('currency');
+      var feeEl = document.getElementById('shipping-fee');
+      var freeEl = document.getElementById('free-shipping-from');
+      var errs = {
+        company: document.getElementById('company-error'), tax: document.getElementById('tax-error'),
+        fee: document.getElementById('shipping-error'), free: document.getElementById('free-error')
+      };
+
+      function fill() {
+        var s = SP.settings();
+        companyEl.value = s.company; taxEl.value = s.taxRate; curEl.value = s.currency;
+        feeEl.value = s.shippingFee; freeEl.value = s.freeShippingFrom;
+      }
+      fill();
+
+      document.getElementById('settings-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        Object.keys(errs).forEach(function (k) { errs[k].textContent = ''; });
+        var company = companyEl.value.trim();
+        var taxRaw = taxEl.value.trim(), feeRaw = feeEl.value.trim(), freeRaw = freeEl.value.trim();
+        var tax = Number(taxRaw), fee = Number(feeRaw), free = Number(freeRaw);
+        var bad = false;
+
+        if (!company) { errs.company.textContent = 'Company name is required'; bad = true; }
+        if (taxRaw === '' || !isFinite(tax) || tax < 0 || tax > 100) { errs.tax.textContent = 'Tax rate must be between 0 and 100'; bad = true; }
+        if (feeRaw === '' || !isFinite(fee) || fee < 0 || fee > 1000) { errs.fee.textContent = 'Shipping fee must be between 0 and 1,000'; bad = true; }
+        if (freeRaw === '') { errs.free.textContent = 'Free shipping threshold is required'; bad = true; }
+        else if (!isFinite(free) || free < 0) { errs.free.textContent = 'Free shipping threshold cannot be negative'; bad = true; }
+        if (bad) return;
+
+        SP.write(SP.K.settings, { company: company, taxRate: tax, currency: curEl.value, shippingFee: SP.round2(fee), freeShippingFrom: SP.round2(free) });
+        SP.toast('Settings saved');
+        SP.mountShell('settings');
+      });
+
+      document.getElementById('reset-data').addEventListener('click', function () {
+        SP.confirm('Reset all demo data? This restores the sample products, customers and orders.', 'Reset').then(function (ok) {
+          if (!ok) return;
+          SP.resetDemoData();
+          fill();
+          SP.mountShell('settings');
+          SP.toast('Demo data reset');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
