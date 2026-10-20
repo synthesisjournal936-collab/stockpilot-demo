@@ -72,10 +72,10 @@
     if (read(K.settings, null) === null) write(K.settings, DEFAULT_SETTINGS);
     if (read(K.products, null) === null) {
       write(K.products, [
-        { id: 'P-001', name: 'Wireless Mouse', sku: 'WMS-100', price: 25, stock: 40, reorder: 10, active: true },
-        { id: 'P-002', name: 'Mechanical Keyboard', sku: 'KBD-200', price: 79, stock: 11, reorder: 10, active: true },
-        { id: 'P-003', name: 'USB-C Hub', sku: 'HUB-300', price: 45.5, stock: 4, reorder: 5, active: true },
-        { id: 'P-004', name: 'Laptop Stand', sku: 'STD-400', price: 32, stock: 0, reorder: 5, active: true }
+        { id: 'P-001', name: 'Wireless Mouse', category: 'Peripherals', sku: 'WMS-100', price: 25, stock: 40, reorder: 10, active: true },
+        { id: 'P-002', name: 'Mechanical Keyboard', category: 'Peripherals', sku: 'KBD-200', price: 79, stock: 11, reorder: 10, active: true },
+        { id: 'P-003', name: 'USB-C Hub', category: 'Accessories', sku: 'HUB-300', price: 45.5, stock: 4, reorder: 5, active: true },
+        { id: 'P-004', name: 'Laptop Stand', category: 'Accessories', sku: 'STD-400', price: 32, stock: 0, reorder: 5, active: true }
       ]);
     }
     if (read(K.customers, null) === null) {
