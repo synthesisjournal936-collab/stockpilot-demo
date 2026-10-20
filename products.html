@@ -72,6 +72,41 @@
     </form>
   </dialog>
 
+  <dialog id="adjust-dialog" aria-labelledby="adjust-dialog-title">
+    <h2 id="adjust-dialog-title">Adjust stock</h2>
+    <p id="adjust-summary" class="muted"></p>
+    <form id="adjust-form" novalidate>
+      <div class="row">
+        <div class="field">
+          <label for="adjust-type">Change</label>
+          <select id="adjust-type" name="type">
+            <option value="add">Add stock</option>
+            <option value="remove">Remove stock</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="adjust-qty">Quantity</label>
+          <input id="adjust-qty" name="qty" type="number" step="1" autocomplete="off">
+        </div>
+      </div>
+      <div class="field">
+        <label for="adjust-reason">Reason</label>
+        <select id="adjust-reason" name="reason">
+          <option value="">Select reason</option>
+          <option value="Received shipment">Received shipment</option>
+          <option value="Stock count correction">Stock count correction</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Returned">Returned</option>
+        </select>
+      </div>
+      <p id="adjust-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="adjust-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="adjust-save">Update stock</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="assets/js/core.js"></script>
   <script>
     (function () {
@@ -95,6 +130,7 @@
       var lowOnly = document.getElementById('low-stock-only');
       var body = document.querySelector('#product-table tbody');
       var editingId = null;
+      var adjustingId = null;
 
       function products() { return SP.read(SP.K.products, []); }
       function orders() { return SP.read(SP.K.orders, []); }
@@ -125,6 +161,7 @@
             '<td class="num">' + p.stock + '</td>' +
             '<td>' + statusCell(p) + '</td>' +
             '<td><div class="actions">' +
+            '<button type="button" class="btn btn-sm" data-action="adjust">Adjust stock</button>' +
             '<button type="button" class="btn btn-sm" data-action="edit">Edit</button>' +
             '<button type="button" class="btn btn-sm btn-danger" data-action="delete">Delete</button>' +
             '</div></td></tr>';
@@ -207,6 +244,7 @@
         if (!product) return;
 
         if (btn.getAttribute('data-action') === 'edit') { openDialog(product); return; }
+        if (btn.getAttribute('data-action') === 'adjust') { openAdjust(product); return; }
 
         // A product that appears on an order cannot be removed.
         var used = orders().some(function (o) { return o.lines.some(function (l) { return l.productId === id; }); });
@@ -217,6 +255,44 @@
           SP.toast('Product deleted');
           render();
         });
+      });
+
+      /* ---------- adjust stock ---------- */
+      var adjustDialog = document.getElementById('adjust-dialog');
+      var adjType = document.getElementById('adjust-type');
+      var adjQty = document.getElementById('adjust-qty');
+      var adjReason = document.getElementById('adjust-reason');
+      var adjError = document.getElementById('adjust-error');
+
+      function openAdjust(p) {
+        adjustingId = p.id;
+        document.getElementById('adjust-summary').textContent = p.name + ' (' + p.sku + ') - ' + p.stock + ' in stock';
+        adjType.value = 'add'; adjQty.value = ''; adjReason.value = ''; adjError.textContent = '';
+        adjustDialog.showModal();
+        adjQty.focus();
+      }
+      document.getElementById('adjust-cancel').addEventListener('click', function () { adjustDialog.close(); });
+      document.getElementById('adjust-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        adjError.textContent = '';
+        var list = products();
+        var p = list.filter(function (x) { return x.id === adjustingId; })[0];
+        if (!p) return;
+        var raw = adjQty.value.trim();
+        if (!/^\d+$/.test(raw) || Number(raw) < 1 || Number(raw) > 100000) { adjError.textContent = 'Quantity must be a whole number of 1 or more'; return; }
+        if (!adjReason.value) { adjError.textContent = 'Select a reason'; return; }
+        var qty = Number(raw);
+        if (adjType.value === 'remove') {
+          if (qty > p.stock) { adjError.textContent = 'Cannot remove more than the current stock (' + p.stock + ')'; return; }
+          p.stock -= qty;
+        } else {
+          if (p.stock + qty > 100000) { adjError.textContent = 'Stock cannot exceed 100,000'; return; }
+          p.stock += qty;
+        }
+        SP.write(SP.K.products, list);
+        adjustDialog.close();
+        SP.toast('Stock updated');
+        render();
       });
 
       render();
