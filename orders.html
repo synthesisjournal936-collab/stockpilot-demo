@@ -289,14 +289,6 @@
         } else if (action === 'cancel') {
           SP.confirm('Cancel order ' + id + '?', 'Cancel order', 'Keep order').then(function (ok) {
             if (!ok) return;
-            // A confirmed order has already taken stock: cancelling puts it back.
-            if (o.status === 'Confirmed') {
-              var catalogue = products();
-              o.lines.forEach(function (line) {
-                catalogue.forEach(function (p) { if (p.id === line.productId) p.stock += line.qty; });
-              });
-              SP.write(SP.K.products, catalogue);
-            }
             o.status = 'Cancelled';
             saveOrders(list);
             SP.toast('Order ' + id + ' cancelled');
