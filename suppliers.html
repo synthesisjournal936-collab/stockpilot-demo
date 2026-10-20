@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suppliers - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <main class="content">
+        <div class="page-head">
+          <h1>Suppliers</h1>
+          <button type="button" class="btn btn-primary" id="add-supplier">Add Supplier</button>
+        </div>
+
+        <div class="toolbar">
+          <input type="search" id="supplier-search" placeholder="Search suppliers" aria-label="Search suppliers">
+        </div>
+
+        <table id="supplier-table">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th class="num">Lead time (days)</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="supplier-dialog" aria-labelledby="supplier-dialog-title">
+    <h2 id="supplier-dialog-title">Add supplier</h2>
+    <form id="supplier-form" novalidate>
+      <div class="field">
+        <label for="supplier-name">Supplier name</label>
+        <input id="supplier-name" name="name" type="text" autocomplete="off">
+        <span class="field-error" id="supplier-name-error" role="alert"></span>
+      </div>
+      <div class="field">
+        <label for="supplier-email">Email</label>
+        <input id="supplier-email" name="email" type="email" autocomplete="off">
+        <span class="field-error" id="supplier-email-error" role="alert"></span>
+      </div>
+      <div class="field">
+        <label for="supplier-lead">Lead time (days)</label>
+        <input id="supplier-lead" name="lead" type="number" step="1" autocomplete="off">
+        <span class="field-error" id="supplier-lead-error" role="alert"></span>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="supplier-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="supplier-save">Save supplier</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (!SP.mountShell('suppliers')) return;
+
+      var dialog = document.getElementById('supplier-dialog');
+      var form = document.getElementById('supplier-form');
+      var nameEl = document.getElementById('supplier-name');
+      var emailEl = document.getElementById('supplier-email');
+      var leadEl = document.getElementById('supplier-lead');
+      var nameErr = document.getElementById('supplier-name-error');
+      var emailErr = document.getElementById('supplier-email-error');
+      var leadErr = document.getElementById('supplier-lead-error');
+      var title = document.getElementById('supplier-dialog-title');
+      var search = document.getElementById('supplier-search');
+      var body = document.querySelector('#supplier-table tbody');
+      var editingId = null;
+
+      function suppliers() { return SP.read(SP.K.suppliers, []); }
+      function clearErrors() { nameErr.textContent = ''; emailErr.textContent = ''; leadErr.textContent = ''; }
+
+      function render() {
+        var q = search.value.trim().toLowerCase();
+        var rows = suppliers().filter(function (s) {
+          return !q || s.name.toLowerCase().indexOf(q) !== -1 || s.email.toLowerCase().indexOf(q) !== -1;
+        });
+        if (!rows.length) {
+          body.innerHTML = '<tr><td colspan="4" class="empty">No suppliers found</td></tr>';
+          return;
+        }
+        body.innerHTML = rows.map(function (s) {
+          return '<tr data-id="' + SP.esc(s.id) + '">' +
+            '<td>' + SP.esc(s.name) + '</td>' +
+            '<td>' + SP.esc(s.email) + '</td>' +
+            '<td class="num">' + s.lead + '</td>' +
+            '<td><div class="actions">' +
+            '<button type="button" class="btn btn-sm" data-action="edit">Edit</button>' +
+            '<button type="button" class="btn btn-sm btn-danger" data-action="delete">Delete</button>' +
+            '</div></td></tr>';
+        }).join('');
+      }
+
+      function openDialog(s) {
+        editingId = s ? s.id : null;
+        title.textContent = s ? 'Edit supplier' : 'Add supplier';
+        nameEl.value = s ? s.name : '';
+        emailEl.value = s ? s.email : '';
+        leadEl.value = s ? s.lead : '';
+        clearErrors();
+        dialog.showModal();
+        nameEl.focus();
+      }
+
+      document.getElementById('add-supplier').addEventListener('click', function () { openDialog(null); });
+      document.getElementById('supplier-cancel').addEventListener('click', function () { dialog.close(); });
+      search.addEventListener('input', render);
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearErrors();
+        var name = nameEl.value.trim();
+        var email = emailEl.value.trim();
+        var leadRaw = leadEl.value.trim();
+        var bad = false;
+
+        if (!name) { nameErr.textContent = 'Supplier name is required'; bad = true; }
+
+        if (!email) { emailErr.textContent = 'Email is required'; bad = true; }
+        else if (!SP.EMAIL_RE.test(email)) { emailErr.textContent = 'Enter a valid email address'; bad = true; }
+        else if (suppliers().some(function (s) { return s.email.toLowerCase() === email.toLowerCase() && s.id !== editingId; })) {
+          emailErr.textContent = 'A supplier with this email already exists'; bad = true;
+        }
+
+        if (!/^\d+$/.test(leadRaw) || Number(leadRaw) < 1 || Number(leadRaw) > 90) {
+          leadErr.textContent = 'Lead time must be a whole number of days between 1 and 90'; bad = true;
+        }
+        if (bad) return;
+
+        var list = suppliers();
+        var record = { name: name, email: email, lead: Number(leadRaw) };
+        if (editingId) {
+          list = list.map(function (s) { return s.id === editingId ? Object.assign({ id: s.id }, record) : s; });
+          SP.toast('Supplier updated');
+        } else {
+          var next = list.reduce(function (m, s) { return Math.max(m, parseInt(s.id.slice(2), 10) || 0); }, 0) + 1;
+          list.push(Object.assign({ id: 'S-' + String(next).padStart(3, '0') }, record));
+          SP.toast('Supplier added');
+        }
+        SP.write(SP.K.suppliers, list);
+        dialog.close();
+        render();
+      });
+
+      body.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        var id = btn.closest('tr').getAttribute('data-id');
+        var supplier = suppliers().filter(function (s) { return s.id === id; })[0];
+        if (!supplier) return;
+        if (btn.getAttribute('data-action') === 'edit') { openDialog(supplier); return; }
+        SP.confirm('Delete supplier "' + supplier.name + '"?', 'Delete').then(function (ok) {
+          if (!ok) return;
+          SP.write(SP.K.suppliers, suppliers().filter(function (s) { return s.id !== id; }));
+          SP.toast('Supplier deleted');
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
