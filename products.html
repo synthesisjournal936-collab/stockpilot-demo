@@ -14,17 +14,17 @@
       <main class="content">
         <div class="page-head">
           <h1>Products</h1>
-          <button type="button" class="btn btn-primary" id="add-product">Add Product</button>
+          <button type="button" class="btn btn-primary" id="add-product">New Product</button>
         </div>
 
         <div class="toolbar">
-          <input type="search" id="product-search" placeholder="Search products" aria-label="Search products">
+          <input type="search" id="product-search" placeholder="Search by name or SKU" aria-label="Search by name or SKU">
           <label class="check"><input type="checkbox" id="low-stock-only"> Low stock only</label>
         </div>
 
         <table id="product-table">
           <thead>
-            <tr><th>Name</th><th>SKU</th><th class="num">Unit price</th><th class="num">Stock</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>Name</th><th>SKU</th><th class="num">Price</th><th class="num">Stock</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -33,12 +33,12 @@
   </div>
 
   <dialog id="product-dialog" aria-labelledby="product-dialog-title">
-    <h2 id="product-dialog-title">Add product</h2>
+    <h2 id="product-dialog-title">New product</h2>
     <form id="product-form" novalidate>
       <div class="field">
-        <label for="product-name">Product name</label>
-        <input id="product-name" name="name" type="text" autocomplete="off">
-        <span class="field-error" id="product-name-error" role="alert"></span>
+        <label for="product-item-name">Item name</label>
+        <input id="product-item-name" name="name" type="text" autocomplete="off">
+        <span class="field-error" id="product-item-name-error" role="alert"></span>
       </div>
       <div class="row">
         <div class="field">
@@ -81,12 +81,12 @@
       var dialog = document.getElementById('product-dialog');
       var form = document.getElementById('product-form');
       var f = {
-        name: document.getElementById('product-name'), sku: document.getElementById('product-sku'),
+        name: document.getElementById('product-item-name'), sku: document.getElementById('product-sku'),
         price: document.getElementById('product-price'), stock: document.getElementById('product-stock'),
         reorder: document.getElementById('product-reorder'), active: document.getElementById('product-active')
       };
       var err = {
-        name: document.getElementById('product-name-error'), sku: document.getElementById('product-sku-error'),
+        name: document.getElementById('product-item-name-error'), sku: document.getElementById('product-sku-error'),
         price: document.getElementById('product-price-error'), stock: document.getElementById('product-stock-error'),
         reorder: document.getElementById('product-reorder-error')
       };
@@ -133,7 +133,7 @@
 
       function openDialog(p) {
         editingId = p ? p.id : null;
-        title.textContent = p ? 'Edit product' : 'Add product';
+        title.textContent = p ? 'Edit product' : 'New product';
         f.name.value = p ? p.name : '';
         f.sku.value = p ? p.sku : '';
         f.price.value = p ? p.price : '';
@@ -162,8 +162,8 @@
         var reorderRaw = f.reorder.value.trim();
         var bad = false;
 
-        if (!name) { err.name.textContent = 'Product name is required'; bad = true; }
-        else if (name.length > 60) { err.name.textContent = 'Product name must be 60 characters or fewer'; bad = true; }
+        if (!name) { err.name.textContent = 'Please enter an item name'; bad = true; }
+        else if (name.length > 60) { err.name.textContent = 'Item name must be 60 characters or fewer'; bad = true; }
 
         if (!sku) { err.sku.textContent = 'SKU is required'; bad = true; }
         else if (!SKU_RE.test(sku)) { err.sku.textContent = 'SKU must look like ABC-123'; bad = true; }
