@@ -16,6 +16,9 @@ Demo login (fake, public): `admin@stockpilot.io` / `Stock@2026`
 
 Shared code (navigation, auth, storage, order maths, toasts) is in `assets/js/core.js`.
 
+## Notes for testers
+The demo login is fake and public. Data never leaves your browser.
+
 ## Run locally
     python3 -m http.server 8000
 Then open http://localhost:8000/login.html
