@@ -196,7 +196,7 @@ test.describe('Delete a customer', () => {
     await openCustomersPage(page);
 
     // --- Rule 1 (customers.html): name.length > 80 -> "Customer name must be 80 characters or fewer" ---
-    const nameAtLimit = `QA80-${'x'.repeat(74)}`; // exactly 80 characters
+    const nameAtLimit = `QA80-${'x'.repeat(75)}`; // exactly 80 characters
     expect(nameAtLimit.length).toBe(80);
     const atLimitEmail = `qa.limit.80.${Date.now()}@example.com`;
     await addCustomer(page, { name: nameAtLimit, email: atLimitEmail });
@@ -204,7 +204,7 @@ test.describe('Delete a customer', () => {
     await expect(savedRow).toBeVisible({ timeout: 10000 });
     await expect(savedRow.getByRole('cell').nth(0)).toHaveText(nameAtLimit);
 
-    const nameOverLimit = `QA81-${'y'.repeat(75)}`; // one past the limit: 81 characters
+    const nameOverLimit = `QA81-${'y'.repeat(76)}`; // one past the limit: 81 characters
     expect(nameOverLimit.length).toBe(81);
     const overDialog = await openAddCustomerDialog(page);
     await overDialog.getByLabel('Customer name').fill(nameOverLimit);
