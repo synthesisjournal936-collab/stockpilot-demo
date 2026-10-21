@@ -13,6 +13,7 @@
     orders: P + 'orders',
     settings: P + 'settings',
     nextOrder: P + 'next_order',
+    notes: P + 'notes',
     fails: P + 'login_fails',
     lock: P + 'login_lock'
   };
@@ -98,7 +99,7 @@
   }
 
   function resetDemoData() {
-    [K.products, K.customers, K.orders, K.settings, K.nextOrder].forEach(function (k) {
+    [K.products, K.customers, K.orders, K.settings, K.nextOrder, K.notes].forEach(function (k) {
       try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
     });
     seed();
