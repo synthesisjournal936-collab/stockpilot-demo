@@ -107,7 +107,7 @@
         }
         body.innerHTML = rows.map(function (c) {
           return '<tr data-id="' + SP.esc(c.id) + '">' +
-            '<td>' + SP.esc(c.name) + '</td>' +
+            '<td><a href="customer.html?id=' + encodeURIComponent(c.id) + '">' + SP.esc(c.name) + '</a></td>' +
             '<td>' + SP.esc(c.email) + '</td>' +
             '<td>' + SP.esc(c.phone || '-') + '</td>' +
             '<td class="num">' + (counts[c.id] || 0) + '</td>' +

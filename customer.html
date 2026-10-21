@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customer profile - StockPilot</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <main class="content">
+        <p><a href="customers.html" id="back-link">Back to customers</a></p>
+        <div class="page-head">
+          <h1>Customer profile</h1>
+        </div>
+
+        <p id="not-found" hidden>Customer not found</p>
+
+        <section id="profile" hidden>
+          <h2 id="profile-name"></h2>
+          <dl>
+            <dt>Email</dt><dd id="profile-email"></dd>
+            <dt>Phone</dt><dd id="profile-phone"></dd>
+            <dt>Orders</dt><dd id="profile-orders"></dd>
+            <dt>Total ordered</dt><dd id="profile-total"></dd>
+          </dl>
+
+          <h2>Notes</h2>
+          <form id="note-form" novalidate>
+            <div class="field">
+              <label for="note-text">Note</label>
+              <input id="note-text" name="note" type="text" autocomplete="off">
+              <span class="field-error" id="note-error" role="alert"></span>
+            </div>
+            <button type="submit" class="btn btn-primary" id="note-save">Add note</button>
+          </form>
+
+          <table id="note-table">
+            <thead>
+              <tr><th>Note</th><th>Added</th><th>Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      if (!SP.mountShell('customers')) return;
+
+      var id = new URLSearchParams(location.search).get('id');
+      var customer = SP.read(SP.K.customers, []).filter(function (c) { return c.id === id; })[0];
+      if (!customer) { document.getElementById('not-found').hidden = false; return; }
+      document.getElementById('profile').hidden = false;
+
+      var noteEl = document.getElementById('note-text');
+      var noteErr = document.getElementById('note-error');
+      var body = document.querySelector('#note-table tbody');
+
+      function allNotes() { return SP.read(SP.K.notes, []); }
+      function mine() { return allNotes().filter(function (n) { return n.customerId === id; }); }
+
+      function renderDetails() {
+        var mineOrders = SP.read(SP.K.orders, []).filter(function (o) { return o.customerId === id; });
+        var spent = mineOrders.filter(function (o) { return o.status !== 'Cancelled'; })
+          .reduce(function (sum, o) { return sum + o.total; }, 0);
+        document.getElementById('profile-name').textContent = customer.name;
+        document.getElementById('profile-email').textContent = customer.email;
+        document.getElementById('profile-phone').textContent = customer.phone || '-';
+        document.getElementById('profile-orders').textContent = String(mineOrders.length);
+        document.getElementById('profile-total').textContent = SP.money(SP.round2(spent));
+      }
+
+      function renderNotes() {
+        var list = mine().slice().reverse();
+        if (!list.length) {
+          body.innerHTML = '<tr><td colspan="3" class="empty">No notes yet</td></tr>';
+          return;
+        }
+        body.innerHTML = list.map(function (n) {
+          return '<tr data-id="' + SP.esc(n.id) + '"><td>' + SP.esc(n.text) + '</td><td>' + SP.esc(n.date) + '</td>' +
+            '<td><div class="actions"><button type="button" class="btn btn-sm btn-danger" data-action="delete">Delete</button></div></td></tr>';
+        }).join('');
+      }
+
+      document.getElementById('note-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        noteErr.textContent = '';
+        var text = noteEl.value.trim();
+        if (!text) { noteErr.textContent = 'Note is required'; return; }
+        if (text.length > 200) { noteErr.textContent = 'Note must be 200 characters or fewer'; return; }
+        var list = allNotes();
+        var next = list.reduce(function (m, n) { return Math.max(m, parseInt(n.id.slice(2), 10) || 0); }, 0) + 1;
+        list.push({ id: 'N-' + String(next).padStart(3, '0'), customerId: id, text: text, date: SP.today() });
+        SP.write(SP.K.notes, list);
+        noteEl.value = '';
+        SP.toast('Note added');
+        renderNotes();
+      });
+
+      body.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action="delete"]');
+        if (!btn) return;
+        var noteId = btn.closest('tr').getAttribute('data-id');
+        SP.confirm('Delete this note?', 'Delete').then(function (ok) {
+          if (!ok) return;
+          SP.write(SP.K.notes, allNotes().filter(function (n) { return n.id !== noteId; }));
+          SP.toast('Note deleted');
+          renderNotes();
+        });
+      });
+
+      renderDetails();
+      renderNotes();
+    })();
+  </script>
+</body>
+</html>
