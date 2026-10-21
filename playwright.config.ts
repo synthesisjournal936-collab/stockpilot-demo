@@ -18,7 +18,7 @@ function siteLogin() {
 
 export default defineConfig({
   testDir: './tests/generated',
-  retries: 1,
+  retries: 0,
   // Logs in once and saves the session every test starts from (see
   // auth.setup.ts); a test that logs in by itself starts signed out.
   globalSetup: './auth.setup.ts',
