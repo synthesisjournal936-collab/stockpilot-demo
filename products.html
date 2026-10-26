@@ -164,6 +164,7 @@
             '<td><div class="actions">' +
             '<button type="button" class="btn btn-sm" data-action="adjust">Adjust stock</button>' +
             '<button type="button" class="btn btn-sm" data-action="edit">Edit</button>' +
+            '<button type="button" class="btn btn-sm" data-action="duplicate">Duplicate</button>' +
             '<button type="button" class="btn btn-sm btn-danger" data-action="delete">Remove</button>' +
             '</div></td></tr>';
         }).join('');
@@ -246,6 +247,19 @@
 
         if (btn.getAttribute('data-action') === 'edit') { openDialog(product); return; }
         if (btn.getAttribute('data-action') === 'adjust') { openAdjust(product); return; }
+
+        if (btn.getAttribute('data-action') === 'duplicate') {
+          var all = products();
+          var nextId = all.reduce(function (m, p) { return Math.max(m, parseInt(p.id.slice(2), 10) || 0); }, 0) + 1;
+          var copySku = product.sku + '-COPY';
+          var n = 2; while (all.some(function (p) { return p.sku === copySku; })) { copySku = product.sku + '-COPY' + n; n++; }
+          all.push({ id: 'P-' + String(nextId).padStart(3, '0'), name: product.name + ' (copy)', sku: copySku,
+            price: product.price, stock: 0, reorder: product.reorder, active: false });
+          SP.write(SP.K.products, all);
+          SP.toast('Product duplicated');
+          render();
+          return;
+        }
 
         // A product that appears on an order cannot be removed.
         var used = orders().some(function (o) { return o.lines.some(function (l) { return l.productId === id; }); });
